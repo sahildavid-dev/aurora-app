@@ -34,13 +34,14 @@ interface MediaRef {
 // skip validation. This endpoint triggers paid Claude runs and must never
 // be publicly invokable.
 function validateTwilioSignature(event: H3Event, body: Record<string, string>) {
-  const authToken = process.env.TWILIO_AUTH_TOKEN
+  const config = useRuntimeConfig(event)
+  const authToken = config.twilioAuthToken
   if (!authToken) {
     console.error('TWILIO_AUTH_TOKEN is not set — refusing to process Twilio webhook')
     throw createError({ statusCode: 500, statusMessage: 'Twilio auth token not configured' })
   }
 
-  const publicUrl = process.env.PUBLIC_URL
+  const publicUrl = config.publicUrl
   if (!publicUrl) {
     console.error('PUBLIC_URL is not set — cannot validate Twilio signature')
     throw createError({ statusCode: 500, statusMessage: 'Public URL not configured' })
@@ -140,9 +141,8 @@ export default defineEventHandler(async (event) => {
 
   let image: { data: string; mediaType: string } | undefined
   if (mediaRef) {
-    const accountSid = process.env.TWILIO_ACCOUNT_SID
-    const authToken = process.env.TWILIO_AUTH_TOKEN as string // presence enforced by validateTwilioSignature
-    const media = await fetchMedia(mediaRef, accountSid ?? '', authToken)
+    const config = useRuntimeConfig(event)
+    const media = await fetchMedia(mediaRef, config.twilioAccountSid, config.twilioAuthToken)
     if (media) image = media
   }
 

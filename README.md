@@ -88,7 +88,20 @@ Authorization: Bearer <INTERNAL_API_SECRET>
 
 ## Stack
 
-Nuxt 4. Two Nitro server routes:
+Nuxt 4. All server-only secrets are declared once in `nuxt.config.ts`'s
+`runtimeConfig` and read via `useRuntimeConfig(event)` — never `process.env`
+directly inside a route handler. This matters on Amplify: `runtimeConfig`
+defaults are evaluated (and baked into the server bundle) at `nuxt build`
+time, whereas `process.env` reads inside a handler run per-request, in the
+Lambda's own environment — which doesn't reliably have Amplify's
+console-configured vars available. See the comment above `runtimeConfig` in
+`nuxt.config.ts`. The one exception is the Trigger.dev SDK's own implicit
+`process.env.TRIGGER_SECRET_KEY` read, which
+[`server/plugins/trigger.ts`](./server/plugins/trigger.ts) overrides once at
+startup via `configure({ accessToken })`, sourced from the same
+`runtimeConfig`.
+
+Two Nitro server routes:
 
 [`server/api/webhooks/twilio.post.ts`](./server/api/webhooks/twilio.post.ts) —
 the inbound Twilio webhook. Thin and stateless by necessity (see the Lambda
@@ -125,8 +138,11 @@ Point a Twilio WhatsApp sender's webhook at `POST /api/webhooks/twilio` on a
 publicly reachable URL (e.g. `ngrok http 3000` while developing) — that same
 URL is also what `PUBLIC_URL` must be set to.
 
-Required env vars (see `.env.example`), all needed at runtime, not just
-build time:
+Required env vars (see `.env.example`). On Amplify, these must be set as
+Console env vars *before* the build that deploys them — they're baked into
+the server bundle at build time via `runtimeConfig`, not read fresh from
+each Lambda invocation's environment (see [Stack](#stack) above), so a var
+added after the last build won't take effect until the next one:
 
 - `PUBLIC_URL` — this app's public origin, e.g. `https://app.example.com`.
   Used to rebuild the URL Twilio signed against; must match the webhook URL

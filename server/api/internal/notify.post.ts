@@ -38,9 +38,10 @@ export default defineEventHandler(async (event) => {
       ? `${parsed.data.body.slice(0, MAX_BODY_LENGTH - 1)}…`
       : parsed.data.body
 
-  const accountSid = process.env.TWILIO_ACCOUNT_SID
-  const authToken = process.env.TWILIO_AUTH_TOKEN
-  const from = process.env.TWILIO_WHATSAPP_FROM
+  const config = useRuntimeConfig(event)
+  const accountSid = config.twilioAccountSid
+  const authToken = config.twilioAuthToken
+  const from = config.twilioWhatsappFrom
   if (!accountSid || !authToken || !from) {
     console.error('Twilio env vars are not configured — cannot send notify reply')
     throw createError({ statusCode: 500, statusMessage: 'Twilio not configured' })

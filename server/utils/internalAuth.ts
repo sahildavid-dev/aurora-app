@@ -8,7 +8,7 @@ import type { H3Event } from 'h3'
  * on every branch.
  */
 export function assertInternalRequest(event: H3Event) {
-  const secret = process.env.INTERNAL_API_SECRET
+  const secret = useRuntimeConfig(event).internalApiSecret
   if (!secret) {
     console.error('INTERNAL_API_SECRET is not set — refusing internal request')
     throw createError({ statusCode: 500, statusMessage: 'Internal API secret not configured' })
