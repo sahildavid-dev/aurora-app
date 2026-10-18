@@ -1,0 +1,28 @@
+enum ImportState {
+  PENDING // archive job started at Google, not finished yet
+  IMPORTING // archive downloaded, places being written
+  COMPLETE
+  FAILED
+}
+
+// One run of "connect Google and pull my saved places" via the Google Data
+// Portability API. The short-lived access token is kept (encrypted) only while
+// the export is pending, then cleared.
+model GoogleImport {
+  id String @id @default(cuid())
+
+  vendorId String
+  vendor   Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  state          ImportState @default(PENDING)
+  archiveJobId   String?
+  accessTokenEnc String?     @db.Text
+  placeCount     Int         @default(0)
+  error          String?     @db.Text
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  finishedAt DateTime?
+
+  @@index([vendorId, createdAt])
+}

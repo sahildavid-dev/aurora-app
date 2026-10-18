@@ -1,0 +1,73 @@
+model Place {
+  id String @id @default(cuid())
+
+  // Owner. Nullable only so rows that predate ownership survive the migration;
+  // the seed assigns any unowned rows to the vendor, and every query is scoped by it.
+  vendorId String?
+  vendor   Vendor? @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  // Identity. googlePlaceId is the canonical key when present; nullable for
+  // now because nothing populates it yet, but unique so it can be
+  // backfilled later without a migration.
+  googlePlaceId String?
+  name          String
+  nameKey       String // normalised name, used for dedupe matching
+
+  category    String
+  lat         Float?
+  lng         Float?
+  address     String?
+  // Derived from the coordinates (or address) by the Geocoding API; see server/utils/geocode.ts.
+  city        String?
+  region      String?
+  country     String?
+  countryCode String? // ISO 3166-1 alpha-2
+  // Set once a geocode was attempted, even if it found nothing, so it is never retried forever.
+  geocodedAt  DateTime?
+  description String?
+  hours       String?
+  phone       String?
+  website     String?
+  instagram   String?
+  facebook    String?
+  twitter     String?
+  tiktok      String?
+
+  // The owner's own layer — this is the part Google does not have.
+  notes   String?  @db.Text
+  tags    String[] @default([])
+  rating  Int?
+  visited Boolean  @default(false)
+
+  // Provenance and review
+  status       PlaceStatus @default(NEEDS_REVIEW)
+  confidence   Confidence
+  sourceUrl    String?
+  // Field names edited by hand in the web app. The agent must never
+  // overwrite these.
+  lockedFields String[]    @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  captures Capture[]
+
+  @@unique([vendorId, googlePlaceId])
+  @@index([vendorId])
+  @@index([vendorId, country])
+  @@index([nameKey])
+  @@index([lat, lng])
+  @@index([status])
+}
+
+enum PlaceStatus {
+  CONFIRMED
+  NEEDS_REVIEW
+  ARCHIVED
+}
+
+enum Confidence {
+  HIGH
+  MEDIUM
+  LOW
+}

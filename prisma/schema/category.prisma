@@ -1,0 +1,18 @@
+// How a category (a Google list name, or any label on a place) looks on the map: a Lucide icon
+// name and a colour. Categories themselves are just the distinct `Place.category` values;
+// this table only stores the vendor's styling choices, so unstyled categories use defaults.
+model CategoryStyle {
+  id String @id @default(cuid())
+
+  vendorId String
+  vendor   Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  name  String // matches Place.category exactly
+  icon  String // Lucide icon name, e.g. "heart"
+  color String // #rrggbb
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([vendorId, name])
+}

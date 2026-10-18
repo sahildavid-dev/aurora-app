@@ -3,22 +3,41 @@ frontend:
   phases:
     preBuild:
       commands:
-        - npm ci
+        - corepack enable
+        - pnpm install --frozen-lockfile
+        # Needs the schema, not a live DB connection, so it can run before
+        # DATABASE_URL is written below.
+        - pnpm exec prisma generate
     build:
       commands:
-        # These land in .env before `nuxt build` runs, so nuxt.config.ts's
-        # runtimeConfig defaults (evaluated at build time) pick them up —
-        # see the comment above `runtimeConfig` in nuxt.config.ts for why
-        # that matters on Amplify's Lambda-backed SSR compute. Configure
-        # the actual values as env vars on this Amplify app (Console ->
-        # Hosting -> Environment variables).
+        # These land in .env before `prisma migrate deploy`/`nuxt build`
+        # run, so nuxt.config.ts's runtimeConfig defaults (evaluated at
+        # build time) pick them up — see the comment above `runtimeConfig`
+        # in nuxt.config.ts for why that matters on Amplify's Lambda-backed
+        # SSR compute. Configure the actual values as env vars on this
+        # Amplify app (Console -> Hosting -> Environment variables).
+        - echo "DATABASE_URL=$DATABASE_URL" >> .env
+        - echo "DIRECT_URL=$DIRECT_URL" >> .env
+        - echo "VENDOR_EMAIL=$VENDOR_EMAIL" >> .env
+        - echo "VENDOR_PASSWORD=$VENDOR_PASSWORD" >> .env
+        - echo "GOOGLE_MAPS_API_KEY=$GOOGLE_MAPS_API_KEY" >> .env
+        - echo "GOOGLE_GEOCODING_API_KEY=$GOOGLE_GEOCODING_API_KEY" >> .env
+        - echo "GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID" >> .env
+        - echo "GOOGLE_CLIENT_SECRET=$GOOGLE_CLIENT_SECRET" >> .env
+        - echo "GOOGLE_REDIRECT_URI=$GOOGLE_REDIRECT_URI" >> .env
+        - echo "SECRET_ENCRYPTION_KEY=$SECRET_ENCRYPTION_KEY" >> .env
         - echo "PUBLIC_URL=$PUBLIC_URL" >> .env
         - echo "TWILIO_ACCOUNT_SID=$TWILIO_ACCOUNT_SID" >> .env
         - echo "TWILIO_AUTH_TOKEN=$TWILIO_AUTH_TOKEN" >> .env
         - echo "TWILIO_WHATSAPP_FROM=$TWILIO_WHATSAPP_FROM" >> .env
         - echo "TRIGGER_SECRET_KEY=$TRIGGER_SECRET_KEY" >> .env
         - echo "INTERNAL_API_SECRET=$INTERNAL_API_SECRET" >> .env
-        - NODE_OPTIONS=--max-old-space-size=4096 npm run build
+        # Applies any pending migrations to the real database — needs
+        # DATABASE_URL (just written above) and for this build container to
+        # actually be able to reach that database over the network.
+        - pnpm exec prisma migrate deploy
+        - pnpm exec prisma db seed
+        - pnpm build
   artifacts:
     baseDirectory: .amplify-hosting
     files:

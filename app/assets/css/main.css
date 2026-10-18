@@ -1,0 +1,126 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+@font-face {
+	font-family: "Open Sans";
+	src: url("../fonts/OpenSans-Regular.ttf") format("truetype");
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: "Open Sans";
+	src: url("../fonts/OpenSans-Medium.ttf") format("truetype");
+	font-weight: 500;
+	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: "Open Sans";
+	src: url("../fonts/OpenSans-SemiBold.ttf") format("truetype");
+	font-weight: 600;
+	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: "Open Sans";
+	src: url("../fonts/OpenSans-Bold.ttf") format("truetype");
+	font-weight: 700;
+	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: "Lora";
+	src: url("../fonts/Lora-Regular.ttf") format("truetype");
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: "Lora";
+	src: url("../fonts/Lora-Medium.ttf") format("truetype");
+	font-weight: 500;
+	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: "Lora";
+	src: url("../fonts/Lora-SemiBold.ttf") format("truetype");
+	font-weight: 600;
+	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: "Lora";
+	src: url("../fonts/Lora-Bold.ttf") format("truetype");
+	font-weight: 700;
+	font-style: normal;
+	font-display: swap;
+}
+
+@theme {
+	--font-sans: "Open Sans", system-ui, -apple-system, sans-serif;
+	--font-heading: "Lora", ui-serif, Georgia, serif;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+	font-family: var(--font-heading);
+}
+
+/* Stark black and white: pure black on pure white, 4px corners, hairline borders.
+ * Nuxt UI reads these --ui-* tokens, so every component follows. */
+:root {
+	--ui-radius: 4px;
+	--ui-bg: #fff;
+	--ui-text: #000;
+	--ui-text-highlighted: #000;
+	--ui-text-muted: #525252;
+	--ui-border: #000;
+	--ui-border-accented: #000;
+	--ui-primary: #000;
+}
+
+body {
+	background: #fff;
+	color: #000;
+}
+
+h1,
+h2,
+h3 {
+	letter-spacing: -0.02em;
+}
+
+/* Nuxt UI scales --ui-radius per size (rounded-md is 1.5x, rounded-lg 2x, ...). Pin every
+ * step to exactly 4px so corners are uniform; rounded-full stays a circle. */
+@theme {
+	--radius-xs: 4px;
+	--radius-sm: 4px;
+	--radius-md: 4px;
+	--radius-lg: 4px;
+	--radius-xl: 4px;
+	--radius-2xl: 4px;
+	--radius-3xl: 4px;
+}
+
+/* Aurora palette: Cotswold green (muted sage) from light to deep forest, plus a soft lime
+ * glow used sparingly for the one primary action on a screen. */
+@theme {
+	--color-cotswold-50: #f3f6f1;
+	--color-cotswold-100: #e6ece2;
+	--color-cotswold-200: #cfdacb;
+	--color-cotswold-300: #b3c4af;
+	--color-cotswold-400: #94ab92;
+	--color-cotswold-500: #7a9479;
+	--color-cotswold-600: #5f7860;
+	--color-cotswold-700: #4b5f4d;
+	--color-cotswold-800: #3c4c3f;
+	--color-cotswold-900: #2a362d;
+	--color-cotswold-950: #141c17;
+	--color-glow: #dfe98e;
+}

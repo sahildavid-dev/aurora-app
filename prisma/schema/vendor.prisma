@@ -1,0 +1,15 @@
+model Vendor {
+  id             String   @id @default(cuid())
+  email          String   @unique // stored lowercased
+  passwordHash   String
+  // E.164 (e.g. +447700900123). Inbound WhatsApp captures from this number belong to this vendor.
+  whatsappNumber String?  @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  sessions       Session[]
+  googleImports  GoogleImport[]
+  places         Place[]
+  captures       Capture[]
+  categoryStyles CategoryStyle[]
+}

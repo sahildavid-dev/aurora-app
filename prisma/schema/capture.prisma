@@ -1,0 +1,26 @@
+model Capture {
+  id String @id @default(cuid())
+
+  vendorId String?
+  vendor   Vendor? @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  // Twilio MessageSid — unique, giving a durable idempotency guarantee at
+  // the database level in addition to the Trigger.dev idempotency key.
+  messageSid  String   @unique
+  from        String
+  // The raw inbound message, stored verbatim. Cheap to keep and it allows
+  // re-extracting structure later with a better prompt.
+  text        String   @db.Text
+  hasImage    Boolean  @default(false)
+  receivedAt  DateTime
+  // Full agent output as returned, before any merge rules were applied.
+  agentOutput Json?
+  action      String? // 'created' | 'updated' | 'skipped'
+  placeId     String?
+  place       Place?   @relation(fields: [placeId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+
+  @@index([vendorId])
+  @@index([placeId])
+  @@index([createdAt])
+}

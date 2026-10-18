@@ -1,20 +1,49 @@
 {
-  "name": "aurora-app",
-  "type": "module",
-  "private": true,
-  "scripts": {
-    "build": "nuxt build",
-    "dev": "nuxt dev",
-    "generate": "nuxt generate",
-    "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
-  },
-  "dependencies": {
-    "@trigger.dev/sdk": "^4.5.11",
-    "nuxt": "^4.5.2",
-    "twilio": "^6.1.0",
-    "vue": "^3.5.41",
-    "vue-router": "^5.2.0",
-    "zod": "^3.25.76"
-  }
+	"name": "aurora-app",
+	"type": "module",
+	"private": true,
+	"scripts": {
+		"build": "NODE_OPTIONS=--max-old-space-size=6144 nuxt build",
+		"dev": "nuxt dev",
+		"generate": "nuxt generate",
+		"preview": "nuxt preview",
+		"postinstall": "nuxt prepare",
+		"lint": "biome lint .",
+		"format": "biome format --write .",
+		"check": "biome check --write .",
+		"typecheck": "nuxt typecheck",
+		"db:generate": "prisma generate",
+		"db:migrate": "prisma migrate dev",
+		"db:deploy": "prisma migrate deploy",
+		"db:seed": "prisma db seed"
+	},
+	"dependencies": {
+		"@iconify-json/lucide": "^1.2.146",
+		"@nuxt/ui": "4.9.0",
+		"@prisma/adapter-pg": "^7.10.1",
+		"@prisma/client": "^7.10.1",
+		"@trigger.dev/sdk": "^4.5.11",
+		"argon2": "^0.44.0",
+		"dotenv": "^17.4.2",
+		"fflate": "^0.8.3",
+		"h3": "1.15.11",
+		"nuxt": "^4.5.2",
+		"pg": "^8.22.0",
+		"tailwindcss": "^4.3.2",
+		"twilio": "^6.1.0",
+		"typescript": "^6.0.3",
+		"vue": "^3.5.41",
+		"vue-router": "^5.2.0",
+		"zod": "^4.4.3"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.5.3",
+		"@types/google.maps": "^3.66.7",
+		"@types/node": "^26.1.1",
+		"@types/pg": "^8.20.0",
+		"prisma": "^7.10.1",
+		"tsx": "^4.23.0",
+		"vue-tsc": "^3.3.7"
+	},
+	"packageManager": "pnpm@10.33.2"
 }

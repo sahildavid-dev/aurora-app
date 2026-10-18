@@ -21,12 +21,14 @@ returns; the reply comes back out-of-band once the agent is done.
 1. Receives an inbound WhatsApp message via a Twilio webhook, downloads any
    attached photo, and triggers `capture-agent` with the raw message.
 2. `capture-agent` does its own interpretation of the text/image, resolves
-   the place, and calls back into this app to send the WhatsApp reply.
+   the place, calls back into this app to save it, and sends the WhatsApp
+   reply.
 
 ```
 WhatsApp user → Twilio → aurora-app (this repo) → Trigger.dev capture-agent → Claude
-      ↑                       ↑                              │
-      └── Twilio REST API ────┴── POST /api/internal/notify ──┘
+                              ↑                              │
+                              ├── POST /api/internal/places/upsert (save)
+                              └── POST /api/internal/notify (reply, via Twilio REST API)
 ```
 
 ## Integration contract
@@ -82,9 +84,75 @@ Authorization: Bearer <INTERNAL_API_SECRET>
   rejected if longer.
 - Authenticated with a shared bearer secret (`INTERNAL_API_SECRET`),
   compared in constant time. This is a general-purpose internal auth guard
-  ([`server/utils/internalAuth.ts`](./server/utils/internalAuth.ts)) meant
-  to be reused by future agent-to-app endpoints (e.g. place writes), not
-  something specific to notify.
+  ([`server/utils/internalAuth.ts`](./server/utils/internalAuth.ts)) shared
+  with the upsert endpoint below, not something specific to notify.
+
+## Database
+
+Postgres via Prisma ([`prisma/schema/`](./prisma/schema) (one file per model)). Two
+models:
+
+- **Place** — one real-world place. Split into fields Google-sourced data
+  fills (`name`, `category`, `address`, `hours`, ...) and an owner's-layer
+  Google doesn't have (`notes`, `tags`, `rating`, `visited`). `status`
+  (`NEEDS_REVIEW` / `CONFIRMED` / `ARCHIVED`) and `confidence` track how much
+  to trust the current data; `lockedFields` lists field names a human has
+  hand-edited, which the agent's merge logic (below) must never overwrite.
+- **Capture** — one inbound WhatsApp message, kept verbatim (`text`,
+  `agentOutput` as raw JSON) whether or not it produced a place, linked to
+  the `Place` it resolved to (or `null` if none). `messageSid` is unique —
+  a database-level idempotency guarantee in addition to Trigger.dev's own
+  idempotency key.
+
+### Matching and merging ([`server/utils/places.ts`](./server/utils/places.ts))
+
+A capture rarely stands alone — the same place gets mentioned across
+multiple WhatsApp messages over time, each with partial, sometimes
+conflicting information. `findMatch` looks for an existing `Place`
+(exact `googlePlaceId`, then a ~150m bounding box + matching normalised
+name, then normalised name alone if unambiguous) and `mergePlace` decides,
+field by field, what a match should absorb from a new capture:
+
+- A locked field (see above) is never touched.
+- An empty incoming value never overwrites a non-empty existing one.
+- An empty existing field is filled regardless of confidence; a non-empty
+  one is only overwritten by equal-or-higher confidence.
+- `notes` is append-only — never overwritten, never dropped, just added to
+  on a new line if not already present.
+- The place keeps the higher of its own and the incoming confidence, and
+  `status` is promoted to `CONFIRMED` at `HIGH` confidence — but a place
+  already `CONFIRMED` is never downgraded.
+
+### Agent write path
+
+[`server/api/internal/places/upsert.post.ts`](./server/api/internal/places/upsert.post.ts) —
+the *only* place matching/merging/creating happens, so a future bulk
+import or web-app paste behaves identically to a WhatsApp capture.
+Guarded by the same `assertInternalRequest` as notify. Body is the
+`capture-agent` output shape plus the originating message's metadata
+(`messageSid`, `from`, `receivedAt`, `text`, `hasImage`); a repeat
+`messageSid` returns the original result with `action: 'skipped'` instead
+of writing again. Match, merge-or-create, and the `Capture` row all happen
+inside one `prisma.$transaction`.
+
+### Web app CRUD ([`server/api/places/`](./server/api/places/))
+
+Unauthenticated for now (see the `TODO` comment at the top of each file —
+acceptable only because the app isn't public yet):
+
+- `GET /api/places` — list, filterable by `q` (name/address), `status`,
+  `category`, `tag`, `bbox`, cursor-paginated (`limit`, default 50/max 200;
+  `cursor`), newest first.
+- `GET /api/places/:id` — single place with its captures.
+- `POST /api/places` — manual create; defaults to `HIGH`/`CONFIRMED` since a
+  human typing it in is already-reviewed data.
+- `PATCH /api/places/:id` — manual edit. Every field the request touches —
+  including setting it to `null`, a deliberate clear — is added to that
+  place's `lockedFields`, so a later agent capture's `mergePlace` skips it.
+  Changing `name` recomputes `nameKey`.
+- `DELETE /api/places/:id` — soft delete (`status: ARCHIVED`, row kept);
+  `?hard=true` for a real delete (its captures survive with `placeId` set
+  to `null`, per the model's `onDelete: SetNull`).
 
 ## Stack
 
@@ -101,7 +169,16 @@ console-configured vars available. See the comment above `runtimeConfig` in
 startup via `configure({ accessToken })`, sourced from the same
 `runtimeConfig`.
 
-Two Nitro server routes:
+`server/utils/prisma.ts` follows the same build-time-baked approach for
+`DATABASE_URL`: the connection string is handed to the `PrismaPg` driver
+adapter explicitly, via `useRuntimeConfig().databaseUrl`, rather than read
+from `process.env` in the running Lambda at cold start — the same
+unreliable read as everything else above. It's cached on
+`globalThis` (surviving warm Lambda invocations and dev-mode HMR alike), so
+a request never instantiates a fresh client — and a fresh connection pool
+— of its own.
+
+Nitro server routes:
 
 [`server/api/webhooks/twilio.post.ts`](./server/api/webhooks/twilio.post.ts) —
 the inbound Twilio webhook. Thin and stateless by necessity (see the Lambda
@@ -122,16 +199,21 @@ invocations):
   download or trigger failure is left to throw a 5xx — Twilio retries, and
   the `MessageSid` idempotency key prevents a duplicate paid run.
 
-[`server/api/internal/notify.post.ts`](./server/api/internal/notify.post.ts) —
-the reply path `capture-agent` calls back into; see [Reply path](#reply-path)
-above.
+[`server/api/internal/notify.post.ts`](./server/api/internal/notify.post.ts) and
+[`server/api/internal/places/upsert.post.ts`](./server/api/internal/places/upsert.post.ts) —
+the two paths `capture-agent` calls back into; see
+[Reply path](#reply-path) and [Database](#database) above.
+
+`server/api/places/` — the unauthenticated web app CRUD; see
+[Database](#database) above.
 
 ## Setup
 
 ```bash
-npm install
-cp .env.example .env   # fill in Twilio + Trigger.dev + internal secret
-npm run dev
+pnpm install
+cp .env.example .env   # fill in DATABASE_URL + Twilio + Trigger.dev + internal secret
+pnpm exec prisma migrate deploy   # apply migrations to that database
+pnpm dev
 ```
 
 Point a Twilio WhatsApp sender's webhook at `POST /api/webhooks/twilio` on a
@@ -144,6 +226,10 @@ the server bundle at build time via `runtimeConfig`, not read fresh from
 each Lambda invocation's environment (see [Stack](#stack) above), so a var
 added after the last build won't take effect until the next one:
 
+- `DATABASE_URL` — pooled Postgres connection string, used at runtime
+  through the `PrismaPg` adapter.
+- `DIRECT_URL` — direct (non-pooled) connection string, read by the Prisma
+  CLI via `prisma.config.ts` (not `runtimeConfig`) for `migrate deploy`.
 - `PUBLIC_URL` — this app's public origin, e.g. `https://app.example.com`.
   Used to rebuild the URL Twilio signed against; must match the webhook URL
   configured in the Twilio console exactly.
@@ -154,5 +240,14 @@ added after the last build won't take effect until the next one:
 - `TRIGGER_SECRET_KEY` — auth for triggering `capture-agent` in
   `aurora-agents`.
 - `INTERNAL_API_SECRET` — shared bearer secret `capture-agent` presents when
-  calling this app's internal endpoints (currently just `/api/internal/notify`).
-  Generate with `openssl rand -hex 32`.
+  calling this app's internal endpoints (`/api/internal/notify` and
+  `/api/internal/places/upsert`). Generate with `openssl rand -hex 32`.
+
+### Database migrations on Amplify
+
+[`amplify.yml`](./amplify.yml)'s build phase runs `prisma generate` (in
+`preBuild`, needs only the schema) and `prisma migrate deploy` (in `build`,
+after `DIRECT_URL` is written to `.env` — needs a real connection to the
+database, so the build container must be able to reach it over the
+network). There's no separate migration step outside the build — a deploy
+*is* the migration.
